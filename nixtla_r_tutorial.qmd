@@ -1,0 +1,100 @@
+---
+title: "nixtla-r-tutorial"
+author: "fth"
+format: gfm
+---
+
+
+#### notes:
+Below, is documentation on bridging nixtla to r, using reticulate. This will eventually be a package of its own. But in essence, this is a guide to setting up python, nixtla, and R, so that one can train n-beats & n-hits, two newly developed SOTA deep learning models from R. 
+
+
+#### setup code chunk:
+you will need a recent version of reticulate, miniconda, and python. Uncomment code where necessary:
+```{r}
+library(reticulate)
+
+# reticulate::install_miniconda(force=TRUE)
+# reticulate::install_python()
+# py_install("neuralforecast", pip = TRUE) 
+
+```
+
+import python modules & submodules into R envs: 
+```{r}
+# forecasting tool
+NeuralForecast <- py_run_string("from neuralforecast import NeuralForecast")
+
+# models we want
+# NBEATS <- py_run_string("from neuralforecast.models import NBEATS")
+# NHITS  <- py_run_string("from neuralforecast.models import NHITS")
+
+nf <- reticulate::import("neuralforecast") # importing entire module instead of subs for models
+
+# test dataset 
+AirPassengersDF <- py_run_string("from neuralforecast.utils import AirPassengersDF")
+
+```
+
+
+```{r}
+library(dplyr)
+# Split data and declare panel dataset
+Y_df = AirPassengersDF$AirPassengersDF
+Y_train_df = Y_df |> 
+              dplyr::filter(ds<='1959-12-31') # 132 train
+
+Y_test_df = Y_df |>
+             dplyr::filter(ds>'1959-12-31') # 12 test
+```
+
+
+
+#### model setup:
+note that [] brackets are now c() and the input_size must be forced into an integer value: 
+```{r}
+# Fit and predict with NBEATS and NHITS models
+horizon <- length(Y_test_df$ds)
+
+models <- c(nf$models$NBEATS(input_size=as.integer(2 * horizon), h=horizon, max_steps=50),
+             nf$models$NHITS(input_size=as.integer(2 * horizon), h=horizon, max_steps=50))
+
+
+
+```
+#### fit and predict:
+
+```{r}
+#| message: false
+#| warning: false
+# using the py envs models until I have a fix.
+neural_setup <- NeuralForecast$NeuralForecast(models=models, freq='M')
+
+neural_fit <- neural_setup$fit(df=Y_train_df)
+
+neural_cast <- neural_setup$predict(neural_fit)
+
+```
+#### eda: 
+```{r}
+#| warning: false
+library(ggplot2)
+# devtools::install_github("frankiethull/BobRossColors")
+library(BobRossColors)
+
+Y_df |>
+  left_join(neural_cast, by = "ds") |>
+  ggplot() + 
+  geom_line(aes(x = ds, y = y, color = "truth"), size = 1.4) + 
+  geom_line(aes(x = ds, y = NBEATS, color = "NBEATS"), size = 1.4) + 
+  geom_line(aes(x = ds, y= NHITS, color = "NHITS"), size = 1.4) + 
+  theme_minimal() + 
+  BobRossColors::scale_color_bob_ross() + 
+  labs(title = "Air Passenger Predictions from Nixtla in R")
+
+```
+
+```{r}
+sessionInfo()
+```
+
