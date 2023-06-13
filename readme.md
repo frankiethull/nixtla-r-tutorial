@@ -78,7 +78,7 @@ models <- c(nf$models$NBEATS(input_size=as.integer(2 * horizon), h=horizon, max_
 #### fit and predict:
 
 ``` r
-# using the py envs models until I have a fix.
+
 neural_setup <- NeuralForecast$NeuralForecast(models=models, freq='M')
 
 neural_fit <- neural_setup$fit(df=Y_train_df)
